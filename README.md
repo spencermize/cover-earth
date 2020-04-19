@@ -1,4 +1,4 @@
-# cheater-checker
+# cover-earth
 
 ## Project setup
 ```
