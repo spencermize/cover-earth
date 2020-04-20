@@ -3,31 +3,58 @@
 // import express from 'express';
 // import cookieParser from 'cookie-parser';
 // import logger from 'morgan';
+require('dotenv').config();
 
 const PORT = process.env.PORT || 5000
 
 const createError = require('http-errors');
 const express = require('express');
+const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const logger = require('morgan');
+const session = require("express-session");
+const passport = require('passport');
+const MongoStore = require('connect-mongo')(session);
+const mongoose = require('mongoose');
+const db = require('./db');
+const apiRouter = require('./routes/api');
+const authRouter = require('./routes/auth');
+const compression = require('compression');
 
-// var indexRouter = require('./routes/index');
-// var usersRouter = require('./routes/users');
-
+db.connect();
 const app = express();
 
 app.use(logger('dev'));
+app.use(cors());
 app.use(cookieParser());
+app.use(compression());
 
-// app.use('/', indexRouter);
-// app.use('/users', usersRouter);
+app.use(session({ 
+	secret: "hoobidydoo", 
+	saveUninitialized: false, 
+	resave: true,
+	store: new MongoStore({
+		mongooseConnection: mongoose.connection
+	})
+}));
+
+app.use(passport.initialize());
+app.use(passport.session());
+
+app.use('/auth', authRouter.router);
+app.use('/api', apiRouter);
 
 app.use(express.static('dist'))
 
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
-  next(createError(404));
+	if(req.path.includes('api')){
+		next(createError(404));
+	} else {
+		res.redirect('/');
+	}
+
 });
 
 // error handler

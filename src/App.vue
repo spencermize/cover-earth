@@ -1,23 +1,8 @@
 <template>
   <v-app>
-    <v-app-bar app color="white" light>
-      <div class="d-flex align-center">
-        <v-img
-          alt="Cheater Checker Logo"
-          class="shrink"
-          contain
-          src="/img/logo.png"
-          transition="scale-transition"
-          height="48"
-        />
-      </div>
-
-      <v-spacer></v-spacer>
-
-    </v-app-bar>
-
     <v-content>
-      <router-view></router-view>
+		<router-view v-on:login-change="onLoginChange" v-bind:login="login"></router-view>
+		<loading v-if="loading"></loading>
     </v-content>
   </v-app>
 </template>
@@ -26,10 +11,26 @@
 import Vue from "vue";
 
 export default Vue.extend({
-  name: "App",
-
-  data: () => ({
-    //
-  })
+	name: "App",
+	data: () => {
+		return {
+			login: false as boolean,
+			loading: false
+		}
+	},
+	methods: {
+		onLoginChange: async function(login: boolean) {
+			this.loading = true;
+			if(!login) {
+				const request = await fetch('/auth/logout');
+				const json = await request.json();
+				if ( json.success ) {
+					this.loading = false;
+					this.$router.replace('/login');
+				}
+			}
+		},
+		
+	}
 });
 </script>

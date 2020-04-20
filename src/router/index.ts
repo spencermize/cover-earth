@@ -1,15 +1,21 @@
 import Vue from 'vue'
 import VueRouter, { RouteConfig } from 'vue-router'
 import Main from '../views/Main.vue'
+import Login from '../views/Login.vue'
 
-Vue.use(VueRouter)
+Vue.use(VueRouter);
 
-  const routes: Array<RouteConfig> = [
+const routes: Array<RouteConfig> = [
   {
     path: '/',
     name: 'Main',
     component: Main
   },
+  {
+    path: '/login',
+    name: 'Login',
+    component: Login
+  },  
   {
     path: '/about',
     name: 'About',
@@ -26,4 +32,20 @@ const router = new VueRouter({
   routes
 })
 
+router.beforeEach(async (to, from, next) => {
+	await Vue.nextTick();
+	console.log(router.app.$data.loggedIn);
+	
+	if (!router.app.$data.login){
+		const resp = await fetch('/api/users/session');
+		router.app.$data.login = await resp.json();
+	}
+
+	if (to.path != '/login' && !router.app.$data.login) {
+		next('/login');
+		return;
+	}
+  next();
+})
+	
 export default router
