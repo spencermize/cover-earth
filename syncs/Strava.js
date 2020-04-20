@@ -19,7 +19,7 @@ class Strava {
 
 	async loadAll(user){
 		let page = 1;
-		const perPage = 10;
+		const perPage = 200;
 		const activities = [];
 		const service = 'strava';
 		let keepLooping = true;
@@ -40,37 +40,61 @@ class Strava {
 				keepLooping = false;
 			}
 		}
-
 		for (let i=0; i < activities.length; i++){
 			const act = activities[i];
-			const coords = await stravaApi.streams.activity({
-				types: "latlng",
-				id: act.id
-			}).filter( ret => ret.type == 'latlng' );
-			await new Promise( (res, rej) =>{
-				const activity = mongoose.model('Activity', Activity);
-				const options = { upsert: true, new: true, setDefaultsOnInsert: true };
-				const params = {
-					id: act.id.toString(),
-					last: Date.now(),
-					service,
-					user,
-					location: {
-						type: "Polygon",
-						coordinates: [coords[0].data]
-					}
-				}	
-
+			let coords;
+			const activity = mongoose.model('Activity', Activity);
+			if (act.type.toLowerCase().includes("virtual")) {
+				activity.deleteOne({id: act.id.toString()}, function(){
+					console.log(act.id);	
+				})
+			} else {
 				try{
-					activity.findOneAndUpdate({'id' : act.id, service}, params, options, function(){
-						res();
-					});
+					activity.findOne({id: act.id.toString(), user, service}, async function(err, doc){
+						if(doc && doc.location && doc.location.coordinates && doc.location.coordinates.length){
+							// console.log('already synced')
+						} else {
+							coords = await stravaApi.streams.activity({
+								types: "latlng",
+								id: act.id
+							}).filter( ret => ret.type == 'latlng' );
+						}
 
-				} catch (e) {
+						if (coords && coords.length) { 
+							try {
+								await new Promise( (res, rej) =>{
+									const options = { upsert: true, new: true, setDefaultsOnInsert: true };
+									const params = {
+										id: act.id.toString(),
+										last: Date.now(),
+										service,
+										user,
+										location: {
+											type: "Polygon",
+											coordinates: [coords[0].data]
+										}
+									}	
+
+									try{
+										activity.findOneAndUpdate({'id' : act.id, service}, params, options, function(){
+											res();
+										});
+
+									} catch (e) {
+										console.log(e);
+										rej();
+									}
+								});
+							} catch (e) {
+								console.log(e);
+							}
+						}
+					});						
+				} catch(e){
 					console.log(e);
-					rej();
 				}
-			});
+			}
+
 		}
 
 		return {success: true}

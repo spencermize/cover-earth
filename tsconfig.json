@@ -25,5 +25,5 @@
 		"tests/**/*.tsx"
 	],
 	"exclude": ["node_modules", "./app.js"],
-	"typeRoots": ["./node_modules/@types", "./node_modules/vuetify/types"]
+	"typeRoots": ["./node_modules/@types", "./node_modules/vuetify/types", "./src/typings"]
 }
