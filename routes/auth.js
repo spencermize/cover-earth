@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
 const mongoose = require('mongoose');
-const db = require('./includes/db');
+const db = require('../includes/db');
 const User = require('../includes/models/User');
 const passport = require('passport');
 const StravaStrategy = require('passport-strava-oauth2').Strategy;
