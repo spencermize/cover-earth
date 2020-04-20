@@ -7,6 +7,7 @@ const StravaStrategy = require('passport-strava-oauth2').Strategy;
 
 const express = require('express');
 const router = express.Router();
+const url = process.env.NODE_ENV === "production" ? "https://cover-earth.herokuapp.com" : "http://127.0.0.1";
 
 passport.serializeUser(function(user, done) {
 	console.log('serializing');
@@ -21,10 +22,11 @@ passport.deserializeUser(function(id, done) {
 	});
 });
 
+
 passport.use(new StravaStrategy({
     clientID: process.env.STRAVA_CLIENT_ID,
     clientSecret: process.env.STRAVA_CLIENT_SECRET,
-    callbackURL: `http://127.0.0.1:${process.env.port}/auth/strava/callback`
+    callbackURL: `${url}:${process.env.port}/auth/strava/callback`
   },
   async function(accessToken, refreshToken, profile, done) {
 	const user = mongoose.model('User', User);
