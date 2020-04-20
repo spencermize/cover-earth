@@ -4,7 +4,7 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 
-const { Strava } = require('../includes/syncs/strava');
+const { Strava } = require('../includes/syncs/Strava');
 let strava;
 
 const Activity = require('../includes/models/Activity');
