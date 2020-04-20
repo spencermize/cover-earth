@@ -4,19 +4,19 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 
-const { Strava } = require('../syncs/strava');
+const { Strava } = require('../includes/syncs/strava');
 let strava;
 
-const Activity = require('../models/Activity');
+const Activity = require('../includes/models/Activity');
 const activity = mongoose.model('Activity', Activity);
 const auth = require('./auth').auth;
+router.use(auth);
 
 const obs = new PerformanceObserver((items) => {
   console.log(`${items.getEntries()[0].name}: ${items.getEntries()[0].duration}`);
 });
 obs.observe({ entryTypes: ['measure'] });
 
-router.use(auth);
 router.use(function(req, res, next) {
 	strava = new Strava();
 	strava.setId(req.user.strava.access);

@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
-const db = require('../db');
 const mongoose = require('mongoose');
-const User = require('../models/User');
+const User = require('../includes/models/User');
 const passport = require('passport');
 const StravaStrategy = require('passport-strava-oauth2').Strategy;
 
@@ -15,7 +14,6 @@ passport.serializeUser(function(user, done) {
 });
 
 passport.deserializeUser(function(id, done) {
-	db.connect();
 	const user = mongoose.model('User', User);
 	user.findOne({'strava.id': id}, function(err, res){
 		done(err,res);

@@ -16,7 +16,7 @@ const session = require("express-session");
 const passport = require('passport');
 const MongoStore = require('connect-mongo')(session);
 const mongoose = require('mongoose');
-const db = require('./db');
+const db = require('./includes/db');
 const apiRouter = require('./routes/api');
 const authRouter = require('./routes/auth');
 const compression = require('compression');
@@ -64,6 +64,8 @@ app.use(function(err, req, res, next) {
   res.locals.error = req.app.get('env') === 'development' ? err : {};
 
   // render the error page
+  console.log(err.message);
+  console.log(err.stack);
   res.status(err.status || 500);
   res.json({ error: err })
 });
