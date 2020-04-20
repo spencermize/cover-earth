@@ -12,6 +12,7 @@
 	import Vue from 'vue';
 	import * as L from 'leaflet'; 
 	import glify from 'leaflet.glify';
+	import * as oboe from 'oboe';
 
 	export default Vue.extend({
 		name: 'Main',
@@ -25,24 +26,10 @@
 		},
 		methods: {
 			addPolyGLLayer: async function(){
-				const resp = await fetch('/api/locations/strava');
-				const data = await resp.json();
+				// const resp = await fetch('/api/locations/strava');
+				// const data = await resp.json();
 				const points: [[number, number]?] = [];
-				data.forEach((activity: any) => {
-					// const geo = {
-					// 	type: "Feature",
-					// 	properties: {
-					// 	},
-					// 	geometry: {
-					// 		type: "Polygon",
-					// 		coordinates: activity.location.coordinates,
-					// 	}
-
-					// };
-					points.push(...activity.location.coordinates[0]);
-					delete activity.location.coordinates;
-				})
-				const webGL = glify.points({
+				const webGl = glify.points({
 					map: this.map,
 					size: 5,
 					color: () => { return {r: 92/255, g: 65/255, b:93/255} },
@@ -51,8 +38,45 @@
 					click: (e: Event, feature: any) =>{
 						console.log(feature);
 					}
-				});
-				return data;
+				});	
+				
+				let lastCount = 0;
+				let missedCycles = 0;
+				const renderCycle = setInterval(() => {
+					if (webGl.settings.data.length && webGl.settings.data.length != lastCount){
+						console.log('rendering');
+						lastCount = webGl.settings.data.length;
+						webGl.render();						
+					} else {
+						console.log(webGl.settings.data.length)
+						missedCycles++;
+						if (lastCount && missedCycles > 5) {
+							clearInterval(renderCycle);
+						}
+					}
+				}, 3000);
+
+				oboe('/api/locations/strava')
+					.node('location.coordinates[0]', (coordinates: [[number, number]]) => {
+						webGl.settings.data.push(...coordinates);
+					})
+				// const points: [[number, number]?] = [];
+				// data.forEach((activity: any) => {
+				// 	// const geo = {
+				// 	// 	type: "Feature",
+				// 	// 	properties: {
+				// 	// 	},
+				// 	// 	geometry: {
+				// 	// 		type: "Polygon",
+				// 	// 		coordinates: activity.location.coordinates,
+				// 	// 	}
+
+				// 	// };
+				// 	points.push(...activity.location.coordinates[0]);
+				// 	delete activity.location.coordinates;
+				// })
+
+				// return data;
 			}			
 		},
 		mounted() {

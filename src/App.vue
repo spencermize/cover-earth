@@ -10,8 +10,11 @@
 <script lang="ts">
 import Vue from "vue";
 
+import Loading from "./views/Loading.vue";
+
 export default Vue.extend({
 	name: "App",
+	components: {Loading},
 	data: () => {
 		return {
 			login: false as boolean,

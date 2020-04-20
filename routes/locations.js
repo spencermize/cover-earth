@@ -55,22 +55,24 @@ router.get('/:service?', async function(req, res, next){
 	}
 	performance.mark('b');
 	// console.log(req.user.)
-	const query = activity.find(params);
+	const query = activity.find(params)
+		.cursor({transform: JSON.stringify})
+		.pipe(res.type('json'));
 	
-	performance.mark('c');
-	query.select(returns.join(" "));
-	performance.mark('d');
-	query.exec( (err, result) => {
-		if (err) next(err);
-		performance.mark('e');
-		res.json(result);
-		performance.mark('f');
-		performance.measure("measure a to b", 'a', 'b');
-		performance.measure("measure b to c", 'b', 'c');
-		performance.measure("measure c to d", 'c', 'd');
-		performance.measure("measure d to e", 'd', 'e');
-		performance.measure("measure e to f", 'e', 'f');		
-		res.end();
-	});
+	// performance.mark('c');
+	// query.select(returns.join(" "));
+	// performance.mark('d');
+	// query.exec( (err, result) => {
+	// 	if (err) next(err);
+	// 	performance.mark('e');
+	// 	res.json(result);
+	// 	performance.mark('f');
+	// 	performance.measure("measure a to b", 'a', 'b');
+	// 	performance.measure("measure b to c", 'b', 'c');
+	// 	performance.measure("measure c to d", 'c', 'd');
+	// 	performance.measure("measure d to e", 'd', 'e');
+	// 	performance.measure("measure e to f", 'e', 'f');		
+	// 	res.end();
+	// });
 })
 module.exports = router;
