@@ -41,9 +41,7 @@ passport.use(new StravaStrategy({
 
 	try{
 		user.findOneAndUpdate({'strava.id' : profile.id}, params, options, function(){
-			process.nextTick(function () {
-				return done(null, profile.id);
-			});
+			return done(null, profile.id);
 		});
 
 	} catch (e) {
