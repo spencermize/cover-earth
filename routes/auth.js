@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
 const mongoose = require('mongoose');
+const db = require('./includes/db');
 const User = require('../includes/models/User');
 const passport = require('passport');
 const StravaStrategy = require('passport-strava-oauth2').Strategy;
@@ -7,6 +8,9 @@ const StravaStrategy = require('passport-strava-oauth2').Strategy;
 const express = require('express');
 const router = express.Router();
 const url = process.env.NODE_ENV === "production" ? "https://cover-earth.herokuapp.com" : `http://127.0.0.1:${process.env.port}`;
+
+db.connect();
+mongoose.set('useFindAndModify', false);
 
 passport.serializeUser(function(user, done) {
 	console.log('serializing');
@@ -27,7 +31,6 @@ passport.use(new StravaStrategy({
     callbackURL: `${url}/auth/strava/callback`
   },
   async function(accessToken, refreshToken, profile, done) {
-	  console.log(accessToken);
 	const user = mongoose.model('User', User);
 	const options = { upsert: true, new: true, setDefaultsOnInsert: true };
 	const params = {
@@ -41,7 +44,6 @@ passport.use(new StravaStrategy({
 	}	
 
 	try{
-		console.log('working user');
 		user.findOneAndUpdate({'strava.id' : profile.id}, params, options, function(){
 			console.log('updated');
 			return done(null, profile.id);
