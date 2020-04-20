@@ -27,6 +27,7 @@ passport.use(new StravaStrategy({
     callbackURL: `${url}/auth/strava/callback`
   },
   async function(accessToken, refreshToken, profile, done) {
+	  console.log(accessToken);
 	const user = mongoose.model('User', User);
 	const options = { upsert: true, new: true, setDefaultsOnInsert: true };
 	const params = {
@@ -40,7 +41,9 @@ passport.use(new StravaStrategy({
 	}	
 
 	try{
+		console.log('working user');
 		user.findOneAndUpdate({'strava.id' : profile.id}, params, options, function(){
+			console.log('updated');
 			return done(null, profile.id);
 		});
 
