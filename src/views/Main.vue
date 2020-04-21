@@ -2,9 +2,14 @@
 	<div class="wrapper">
 		<v-system-bar :lights-out="true">
 			<v-spacer></v-spacer>
+			<v-icon v-on:click="sync()">mdi-database-refresh</v-icon>
+			<v-icon v-on:click="addPolyGLLayer()">mdi-star-four-points-outline</v-icon>
 			<v-icon v-on:click="$emit('login-change', false)">mdi-logout-variant</v-icon>
 		</v-system-bar>
 		<div id="map"></div>	
+
+		<v-snackbar v-if="message.length">{{ message }}</v-snackbar>		
+		<loading v-if="loading"></loading>
 	</div>
 </template>
 
@@ -13,18 +18,36 @@
 	import * as L from 'leaflet'; 
 	import glify from 'leaflet.glify';
 	import * as oboe from 'oboe';
+	import Loading from "./Loading.vue";
+	import flip from '@turf/flip';
 
 	export default Vue.extend({
 		name: 'Main',
+		components: { Loading },
 		props: {
 			user: String,
 		},
 		data()  { 
 			return {
-				map: {} as L.Map
+				map: {} as L.Map,
+				message: "" as string,
+				loading: false as boolean
 			}
 		},
 		methods: {
+			sync: async function() {
+				try {
+					this.loading = true;
+					const results = await fetch('/api/locations/sync/strava');
+					await results.json();
+					this.loading = false;
+					this.message = 'Successfully synced!';
+				} catch (e) {
+					this.message = 'Error syncing';
+				}
+
+
+			},
 			addPolyGLLayer: async function(){
 				// const resp = await fetch('/api/locations/strava');
 				// const data = await resp.json();
@@ -32,7 +55,7 @@
 				const webGl = glify.points({
 					map: this.map,
 					size: 5,
-					color: () => { return {r: 92/255, g: 65/255, b:93/255} },
+					color: {r: 92/255, g: 65/255, b:93/255},
 					opacity: 1,
 					data: points,
 					click: (e: Event, feature: any) =>{
@@ -46,7 +69,12 @@
 					if (webGl.settings.data.length && webGl.settings.data.length != lastCount){
 						console.log('rendering');
 						lastCount = webGl.settings.data.length;
+						try{
 						webGl.render();						
+						} catch(e){
+							console.log(webGl.settings.data);
+							clearInterval(renderCycle);
+						}
 					} else {
 						console.log(webGl.settings.data.length)
 						missedCycles++;
@@ -57,26 +85,10 @@
 				}, 3000);
 
 				oboe('/api/locations/strava')
-					.node('location.coordinates[0]', (coordinates: [[number, number]]) => {
-						webGl.settings.data.push(...coordinates);
+					.node('location.coordinates', (coordinates: [[number, number]]) => {
+						webGl.settings.data.push(...coordinates.map(pair => [pair[1], pair[0]])); // have to flip our coordinates because leaflet and geojson dislike one another
+						// console.log(webGl.settings.data);
 					})
-				// const points: [[number, number]?] = [];
-				// data.forEach((activity: any) => {
-				// 	// const geo = {
-				// 	// 	type: "Feature",
-				// 	// 	properties: {
-				// 	// 	},
-				// 	// 	geometry: {
-				// 	// 		type: "Polygon",
-				// 	// 		coordinates: activity.location.coordinates,
-				// 	// 	}
-
-				// 	// };
-				// 	points.push(...activity.location.coordinates[0]);
-				// 	delete activity.location.coordinates;
-				// })
-
-				// return data;
 			}			
 		},
 		mounted() {
@@ -98,7 +110,6 @@
 			this.map.on("zoomend", () => {
 				console.log(this.map.getBounds());
 			});
-			this.addPolyGLLayer();
 		}
 	})
 </script>

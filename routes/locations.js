@@ -3,6 +3,7 @@ const { PerformanceObserver, performance } = require('perf_hooks');
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
+const JSONStream = require('JSONStream');
 
 const { Strava } = require('../includes/syncs/Strava');
 let strava;
@@ -56,23 +57,9 @@ router.get('/:service?', async function(req, res, next){
 	performance.mark('b');
 	// console.log(req.user.)
 	const query = activity.find(params)
-		.cursor({transform: JSON.stringify})
+		.cursor()
+		.pipe(JSONStream.stringify())
 		.pipe(res.type('json'));
-	
-	// performance.mark('c');
-	// query.select(returns.join(" "));
-	// performance.mark('d');
-	// query.exec( (err, result) => {
-	// 	if (err) next(err);
-	// 	performance.mark('e');
-	// 	res.json(result);
-	// 	performance.mark('f');
-	// 	performance.measure("measure a to b", 'a', 'b');
-	// 	performance.measure("measure b to c", 'b', 'c');
-	// 	performance.measure("measure c to d", 'c', 'd');
-	// 	performance.measure("measure d to e", 'd', 'e');
-	// 	performance.measure("measure e to f", 'e', 'f');		
-	// 	res.end();
-	// });
+
 })
 module.exports = router;
