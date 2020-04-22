@@ -20,6 +20,8 @@
 	import * as oboe from 'oboe';
 	import Loading from "./Loading.vue";
 	import flip from '@turf/flip';
+	import { cleanCoords } from '@turf/clean-coords';
+	import turf from '@turf/helpers';
 
 	export default Vue.extend({
 		name: 'Main',
@@ -31,10 +33,23 @@
 			return {
 				map: {} as L.Map,
 				message: "" as string,
-				loading: false as boolean
+				loading: false as boolean,
+				webGl: {} as any
 			}
 		},
 		methods: {
+			buildWebGl: function() {
+				this.webGl = glify.points({
+					map: this.map,
+					size: 5,
+					color: {r: 92/255, g: 65/255, b:93/255},
+					opacity: 1,
+					data: [],
+					click: (e: Event, feature: any) =>{
+						console.log(feature);
+					}
+				});	
+			},
 			sync: async function() {
 				try {
 					this.loading = true;
@@ -52,31 +67,22 @@
 				// const resp = await fetch('/api/locations/strava');
 				// const data = await resp.json();
 				const points: [[number, number]?] = [];
-				const webGl = glify.points({
-					map: this.map,
-					size: 5,
-					color: {r: 92/255, g: 65/255, b:93/255},
-					opacity: 1,
-					data: points,
-					click: (e: Event, feature: any) =>{
-						console.log(feature);
-					}
-				});	
+
 				
 				let lastCount = 0;
 				let missedCycles = 0;
 				const renderCycle = setInterval(() => {
-					if (webGl.settings.data.length && webGl.settings.data.length != lastCount){
+					if (this.webGl.settings.data.length && this.webGl.settings.data.length != lastCount){
 						console.log('rendering');
-						lastCount = webGl.settings.data.length;
+						lastCount = this.webGl.settings.data.length;
 						try{
-						webGl.render();						
+							this.webGl.render();						
 						} catch(e){
-							console.log(webGl.settings.data);
+							console.log(this.webGl.settings.data);
 							clearInterval(renderCycle);
 						}
 					} else {
-						console.log(webGl.settings.data.length)
+						console.log(this.webGl.settings.data.length)
 						missedCycles++;
 						if (lastCount && missedCycles > 5) {
 							clearInterval(renderCycle);
@@ -85,8 +91,8 @@
 				}, 3000);
 
 				oboe('/api/locations/strava')
-					.node('location.coordinates', (coordinates: [[number, number]]) => {
-						webGl.settings.data.push(...coordinates.map(pair => [pair[1], pair[0]])); // have to flip our coordinates because leaflet and geojson dislike one another
+					.node('loc.coordinates', (coordinates: [[number, number]]) => {
+						this.webGl.settings.data.push(...coordinates.map(pair => [pair[1], pair[0]])); // have to flip our coordinates because leaflet and geojson dislike one another
 						// console.log(webGl.settings.data);
 					})
 			}			
@@ -106,9 +112,24 @@
 				maxZoom: 22,
 				maxNativeZoom: 16
 			}).addTo(this.map);
+			
+			this.buildWebGl();
+			
+			this.map.on("zoomend", async () => {
+				const bounds: L.LatLngBounds = this.map.getBounds();
+				oboe(`/api/locations/strava/${bounds.toBBoxString()}`)
+					.node('loc.coordinates', (coordinates: [[number, number]]) => {
+						this.webGl.settings.data.push(...coordinates.map(pair => [pair[1], pair[0]])); // have to flip our coordinates because leaflet and geojson dislike one another
+						// this.webGl.settings.data = cleanCoords(turf.multiPoint(this.webGl.settings.data));
+						window.requestAnimationFrame(() => {this.webGl.render()});
+					})
+					.done((coordinates: [[number, number]]) => {
+						console.log(coordinates.length);
 
-			this.map.on("zoomend", () => {
-				console.log(this.map.getBounds());
+					})
+
+
+
 			});
 		}
 	})

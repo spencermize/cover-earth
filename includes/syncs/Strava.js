@@ -80,19 +80,19 @@ class Strava {
 
 							if (coords && coords.length) { 
 								await new Promise( (res, rej) =>{
-									let location = {
+									let loc = {
 											type: "MultiPoint",
 											coordinates: coords[0].data
 										}
 									const options = { upsert: true, new: true, setDefaultsOnInsert: true };
 
-									location = flip(location);
+									loc = flip(loc);
 									const params = {
 										id: act.id.toString(),
 										last: Date.now(),
 										service,
 										user,
-										location
+										loc
 									}	
 									activity.findOneAndUpdate({'id' : act.id, service}, params, options, function(err){
 										if (err) { 

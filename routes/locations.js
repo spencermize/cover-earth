@@ -43,23 +43,48 @@ router.get('/sync/:service', async function(req, res, next){
 })
 
 router.get('/:service?', async function(req, res, next){
-
-	performance.mark('a');
 	const params = {
 		'user' : req.user.id
 	}
-	const returns = ['id', 'location'];
+	const returns = ['id', 'loc'];
 	if (req.params.service) {
 		params.service = req.params.service
 	} else {
 		returns.push('service');
 	}
-	performance.mark('b');
-	// console.log(req.user.)
 	const query = activity.find(params)
 		.cursor()
 		.pipe(JSONStream.stringify())
 		.pipe(res.type('json'));
 
+})
+
+router.get('/:service/:bbox', async function(req, res, next){
+	const [east, north, west, south] = req.params.bbox.split(',');
+	const geometry = {
+		type: 'Polygon',
+		coordinates: [[
+			[east, north],
+			[east, south],
+			[west, south],
+			[west, north],
+			[east, north]
+		]]
+	}
+	const params = {
+		'user' : req.user.id,
+		'service' : req.params.service,
+		'loc' : {
+			$geoIntersects: {
+				$geometry: geometry
+			}
+		}
+	}
+	const returns = ['id', 'location'];
+
+	const query = activity.find(params)
+		.cursor()
+		.pipe(JSONStream.stringify())
+		.pipe(res.type('json'));
 })
 module.exports = router;
