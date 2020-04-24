@@ -2,12 +2,33 @@
 	<div class="wrapper">
 		<v-system-bar :lights-out="true">
 			<v-spacer></v-spacer>
-			<v-icon v-on:click="sync()">mdi-database-refresh</v-icon>
-			<v-icon v-on:click="addPolyGLLayer()">mdi-star-four-points-outline</v-icon>
-			<v-icon v-on:click="$emit('login-change', false)">mdi-logout-variant</v-icon>
+				<v-tooltip bottom>
+					<template v-slot:activator="{ on }">
+						<v-icon v-on:click="sync()" v-on="on">mdi-database-refresh</v-icon>
+					</template>
+					<span>Sync Database</span>
+				</v-tooltip>
+				<v-tooltip bottom>
+					<template v-slot:activator="{ on }">				
+						<v-icon v-on:click="mapVisible()" v-on="on">mdi-card-search-outline</v-icon>
+					</template>
+					<span>Map Visible Dots</span>
+				</v-tooltip>						
+				<v-tooltip bottom>
+					<template v-slot:activator="{ on }">						
+						<v-icon v-on:click="mapAll()" v-on="on">mdi-star-four-points-outline</v-icon>
+					</template>
+					<span>Map All Dots</span>
+				</v-tooltip>						
+				<v-tooltip bottom>
+					<template v-slot:activator="{ on }">						
+						<v-icon v-on:click="$emit('login-change', false)" v-on="on">mdi-logout-variant</v-icon>
+					</template>
+					<span>Logout</span>
+				</v-tooltip>						
 		</v-system-bar>
 		<div id="map"></div>	
-
+		<div ref="popup" v-show="false">Hi there!</div>
 		<v-snackbar v-if="message.length">{{ message }}</v-snackbar>		
 		<loading v-if="loading"></loading>
 	</div>
@@ -35,7 +56,7 @@
 				message: "" as string,
 				loading: false as boolean,
 				webGl: {} as any,
-				raf: 0 as number
+				renderCycle: 0 as number
 			}
 		},
 		methods: {
@@ -53,6 +74,7 @@
 					}
 				});	
 			},
+
 			sync: async function() {
 				try {
 					this.loading = true;
@@ -63,59 +85,54 @@
 				} catch (e) {
 					this.message = 'Error syncing';
 				}
-
-
 			},
-			addPolyGLLayer: async function(){
-				// const resp = await fetch('/api/locations/strava');
-				// const data = await resp.json();
-				const points: [[number, number]?] = [];
 
-				
-				// let lastCount = 0;
-				// let missedCycles = 0;
-				// const renderCycle = setInterval(() => {
-				// 	if (this.webGl.settings.data.length && this.webGl.settings.data.length != lastCount){
-				// 		console.log('rendering');
-				// 		lastCount = this.webGl.settings.data.length;
-				// 		try{
-				// 			this.webGl.render();						
-				// 		} catch(e){
-				// 			console.log(this.webGl.settings.data);
-				// 			clearInterval(renderCycle);
-				// 		}
-				// 	} else {
-				// 		console.log(this.webGl.settings.data.length)
-				// 		missedCycles++;
-				// 		if (lastCount && missedCycles > 5) {
-				// 			clearInterval(renderCycle);
-				// 		}
-				// 	}
-				// }, 3000);
+			startRender: function() {
+				this.renderCycle = window.setInterval(() => {
+					console.log('rendering');
+					try{
+						this.webGl.render();
+						this.webGl.settings.data = [];	
+					} catch(e){
+						console.log(this.webGl.settings.data);
+					}
+				}, 1000);				
+			},
 
-				oboe('/api/locations/strava')
+			mapVisible: async function() {
+				this.loadPoints(`/api/locations/strava/${this.map.getBounds().toBBoxString()}`);
+				this.startRender();
+			},	
+
+			mapAll: async function(){
+				this.loadPoints('/api/locations/strava');
+				this.startRender();
+			},
+
+			loadPoints: function(location: string) {
+				this.loading = true;
+				oboe(location)
 					.node('loc.coordinates', (coordinates: [[number, number]]) => {
 						this.webGl.settings.data.push(...coordinates.map(pair => [pair[1], pair[0]])); // have to flip our coordinates because leaflet and geojson dislike one another
-						// console.log(webGl.settings.data);
 					})
-			}			
+					.done( () => {
+						clearInterval(this.renderCycle);
+						this.loading = false;
+					})
+			}
 		},
 		mounted() {
-			// if (navigator.geolocation) {
-			// 	navigator.geolocation.getCurrentPosition((position) => {
-			// 		this.map.setView([position.coords.latitude, position.coords.longitude], 13);
-			// 	});
-			// }			
 			this.map = L.map('map',{
 				zoomControl: false,
 				preferCanvas: true,
+				renderer: L.canvas(),
 				crs: L.CRS.EPSG3857
 			});
 
 			this.map.setView([51.505, -0.09], 13);
 			this.map.locate({
 				setView: true,
-				maxZoom: 13,
+				maxZoom: 16,
 				enableHighAccuracy: true
 			});
 			L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
@@ -126,53 +143,11 @@
 			
 			this.buildWebGl();
 			
-			this.map.on("zoomstart", async() => {
+			this.map.on("zoomstart movestart", async() => {			
+				L.imageOverlay(this.webGl.canvas.toDataURL('image/webp', 1), this.map.getBounds())
+					.bindPopup(() => this.$refs.popup.$el)
+					.addTo(this.map);
 				this.webGl.clear();
-			});
-			
-			this.map.on("zoomend", async () => {
-				console.log("!");
-				const bounds: L.LatLngBounds = this.map.getBounds();
-				// let unDrawnData: [number[]?] = [];
-				// const renderer = () => {
-				// 	this.raf = window.requestAnimationFrame(renderer);
-				// 	// if (this.webGl.settings.data.length) {
-				// 		console.log('rendering');
-				// 		this.webGl.setData(unDrawnData);
-				// 		this.webGl.render();
-				// 		unDrawnData = [];
-				// 	// }
-				// }
-				// this.raf = window.requestAnimationFrame(renderer);
-
-				const renderCycle = setInterval(() => {
-					console.log('rendering');
-					try{
-						// this.webGl.settings.data = unDrawnData;
-						this.webGl.render();
-						this.webGl.settings.data = [];	
-					} catch(e){
-						console.log(this.webGl.settings.data);
-					}
-				}, 1000);
-
-
-				oboe(`/api/locations/strava/${bounds.toBBoxString()}`)
-					.node('loc.coordinates', (coordinates: [[number, number]]) => {
-						const dat = coordinates.map(pair => [pair[1], pair[0]]);
-						this.webGl.settings.data.push(...dat);
-						// this.webGl.settings.data.push(...coordinates.map(pair => [pair[1], pair[0]])); // have to flip our coordinates because leaflet and geojson dislike one another
-						// this.webGl.settings.data = cleanCoords(turf.multiPoint(this.webGl.settings.data));
-						
-					})
-					.done((coordinates: [[number, number]]) => {
-						console.log(coordinates.length);
-						// cancelAnimationFrame(this.raf);
-						clearInterval(renderCycle);
-					})
-
-
-
 			});
 		}
 	})
