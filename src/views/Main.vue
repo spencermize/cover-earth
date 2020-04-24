@@ -34,7 +34,8 @@
 				map: {} as L.Map,
 				message: "" as string,
 				loading: false as boolean,
-				webGl: {} as any
+				webGl: {} as any,
+				raf: 0 as number
 			}
 		},
 		methods: {
@@ -45,6 +46,8 @@
 					color: {r: 92/255, g: 65/255, b:93/255},
 					opacity: 1,
 					data: [],
+					preserveDrawingBuffer: true,
+					clearOnRender: false,
 					click: (e: Event, feature: any) =>{
 						console.log(feature);
 					}
@@ -69,26 +72,26 @@
 				const points: [[number, number]?] = [];
 
 				
-				let lastCount = 0;
-				let missedCycles = 0;
-				const renderCycle = setInterval(() => {
-					if (this.webGl.settings.data.length && this.webGl.settings.data.length != lastCount){
-						console.log('rendering');
-						lastCount = this.webGl.settings.data.length;
-						try{
-							this.webGl.render();						
-						} catch(e){
-							console.log(this.webGl.settings.data);
-							clearInterval(renderCycle);
-						}
-					} else {
-						console.log(this.webGl.settings.data.length)
-						missedCycles++;
-						if (lastCount && missedCycles > 5) {
-							clearInterval(renderCycle);
-						}
-					}
-				}, 3000);
+				// let lastCount = 0;
+				// let missedCycles = 0;
+				// const renderCycle = setInterval(() => {
+				// 	if (this.webGl.settings.data.length && this.webGl.settings.data.length != lastCount){
+				// 		console.log('rendering');
+				// 		lastCount = this.webGl.settings.data.length;
+				// 		try{
+				// 			this.webGl.render();						
+				// 		} catch(e){
+				// 			console.log(this.webGl.settings.data);
+				// 			clearInterval(renderCycle);
+				// 		}
+				// 	} else {
+				// 		console.log(this.webGl.settings.data.length)
+				// 		missedCycles++;
+				// 		if (lastCount && missedCycles > 5) {
+				// 			clearInterval(renderCycle);
+				// 		}
+				// 	}
+				// }, 3000);
 
 				oboe('/api/locations/strava')
 					.node('loc.coordinates', (coordinates: [[number, number]]) => {
@@ -98,15 +101,23 @@
 			}			
 		},
 		mounted() {
-			if (navigator.geolocation) {
-				navigator.geolocation.getCurrentPosition((position) => {
-					this.map.setView([position.coords.latitude, position.coords.longitude], 13);
-				});
-			}			
+			// if (navigator.geolocation) {
+			// 	navigator.geolocation.getCurrentPosition((position) => {
+			// 		this.map.setView([position.coords.latitude, position.coords.longitude], 13);
+			// 	});
+			// }			
 			this.map = L.map('map',{
-				zoomControl: false
+				zoomControl: false,
+				preferCanvas: true,
+				crs: L.CRS.EPSG3857
 			});
+
 			this.map.setView([51.505, -0.09], 13);
+			this.map.locate({
+				setView: true,
+				maxZoom: 13,
+				enableHighAccuracy: true
+			});
 			L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
 				attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
 				maxZoom: 22,
@@ -115,17 +126,49 @@
 			
 			this.buildWebGl();
 			
+			this.map.on("zoomstart", async() => {
+				this.webGl.clear();
+			});
+			
 			this.map.on("zoomend", async () => {
+				console.log("!");
 				const bounds: L.LatLngBounds = this.map.getBounds();
+				// let unDrawnData: [number[]?] = [];
+				// const renderer = () => {
+				// 	this.raf = window.requestAnimationFrame(renderer);
+				// 	// if (this.webGl.settings.data.length) {
+				// 		console.log('rendering');
+				// 		this.webGl.setData(unDrawnData);
+				// 		this.webGl.render();
+				// 		unDrawnData = [];
+				// 	// }
+				// }
+				// this.raf = window.requestAnimationFrame(renderer);
+
+				const renderCycle = setInterval(() => {
+					console.log('rendering');
+					try{
+						// this.webGl.settings.data = unDrawnData;
+						this.webGl.render();
+						this.webGl.settings.data = [];	
+					} catch(e){
+						console.log(this.webGl.settings.data);
+					}
+				}, 1000);
+
+
 				oboe(`/api/locations/strava/${bounds.toBBoxString()}`)
 					.node('loc.coordinates', (coordinates: [[number, number]]) => {
-						this.webGl.settings.data.push(...coordinates.map(pair => [pair[1], pair[0]])); // have to flip our coordinates because leaflet and geojson dislike one another
+						const dat = coordinates.map(pair => [pair[1], pair[0]]);
+						this.webGl.settings.data.push(...dat);
+						// this.webGl.settings.data.push(...coordinates.map(pair => [pair[1], pair[0]])); // have to flip our coordinates because leaflet and geojson dislike one another
 						// this.webGl.settings.data = cleanCoords(turf.multiPoint(this.webGl.settings.data));
-						window.requestAnimationFrame(() => {this.webGl.render()});
+						
 					})
 					.done((coordinates: [[number, number]]) => {
 						console.log(coordinates.length);
-
+						// cancelAnimationFrame(this.raf);
+						clearInterval(renderCycle);
 					})
 
 
