@@ -46,7 +46,7 @@ router.get('/:service?', async function(req, res, next){
 	const params = {
 		'user' : req.user.id
 	}
-	const returns = ['id', 'loc'];
+	const returns = ['id', 'location'];
 	if (req.params.service) {
 		params.service = req.params.service
 	} else {
@@ -60,7 +60,13 @@ router.get('/:service?', async function(req, res, next){
 })
 
 router.get('/:service/:bbox', async function(req, res, next){
-	const [east, north, west, south] = req.params.bbox.split(',');
+	const [e, n, w, s] = req.params.bbox.split(',');
+
+	//convert everything to numbers
+	const east = +e,
+		north = +n,
+		west = +w,
+		south = +s
 	const geometry = {
 		type: 'Polygon',
 		coordinates: [[
@@ -74,17 +80,39 @@ router.get('/:service/:bbox', async function(req, res, next){
 	const params = {
 		'user' : req.user.id,
 		'service' : req.params.service,
-		'loc' : {
-			$geoIntersects: {
-				$geometry: geometry
-			}
-		}
 	}
-	const returns = ['id', 'location'];
 
-	const query = activity.find(params)
-		.cursor()
-		.pipe(JSONStream.stringify())
+	const geo = {
+		near: { type: 'Point', coordinates: [east, north]},
+		distanceField: 'distance',
+		spherical: true,
+		query: {
+			'location' : {
+				$geoIntersects: {
+					$geometry: geometry
+				}
+			}
+		}	
+	}
+	const stream = activity.aggregate([
+		{
+			$geoNear: geo
+		},
+		{
+			$match: params
+		}])
+		.cursor({batchSize: 5}).exec()
+
+	stream.pipe(JSONStream.stringify())
 		.pipe(res.type('json'));
+	// stream.on('data', (data) => {
+
+	// 	res.write(JSONStream.stringify(data));
+	// })
+	// stream.on('end', () => {
+	// 	res.end();
+	// });
+		// .pipe(JSONStream.stringify())
+		// .pipe(res.type('json'));
 })
 module.exports = router;

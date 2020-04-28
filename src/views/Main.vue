@@ -100,8 +100,11 @@
 			},
 
 			mapVisible: async function() {
-				this.loadPoints(`/api/locations/strava/${this.map.getBounds().toBBoxString()}`);
-				this.startRender();
+				// const zoom = this.map.getZoom();
+				// this.map.setZoom(1);
+				this.startRender();				
+				await this.loadPoints(`/api/locations/strava/${this.map.getBounds().toBBoxString()}`);
+				// this.map.setZoom(zoom);
 			},	
 
 			mapAll: async function(){
@@ -110,15 +113,20 @@
 			},
 
 			loadPoints: function(location: string) {
-				this.loading = true;
-				oboe(location)
-					.node('loc.coordinates', (coordinates: [[number, number]]) => {
-						this.webGl.settings.data.push(...coordinates.map(pair => [pair[1], pair[0]])); // have to flip our coordinates because leaflet and geojson dislike one another
-					})
-					.done( () => {
-						clearInterval(this.renderCycle);
-						this.loading = false;
-					})
+				return new Promise( (res, rej) => {
+					this.loading = true;
+					oboe(location)
+						.node('location.coordinates', (coordinates: [[number, number]]) => {
+							this.webGl.settings.data.push(...coordinates.map(pair => [pair[1], pair[0]])); // have to flip our coordinates because leaflet and geojson dislike one another
+						})
+						.done( () => {
+							clearInterval(this.renderCycle);
+							this.loading = false;
+							res();
+						})
+						.fail( () => rej );
+				})
+
 			}
 		},
 		mounted() {
@@ -145,9 +153,9 @@
 			
 			this.map.on("zoomstart movestart", async() => {			
 				L.imageOverlay(this.webGl.canvas.toDataURL('image/webp', 1), this.map.getBounds())
-					.bindPopup(() => this.$refs.popup.$el)
+					.bindPopup(() => (this.$refs.popup as any).$el)
 					.addTo(this.map);
-				this.webGl.clear();
+				// this.webGl.clear();
 			});
 		}
 	})
