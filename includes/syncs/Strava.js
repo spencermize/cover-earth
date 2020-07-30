@@ -70,38 +70,44 @@ class Strava {
 							console.log(`found a fresh one: ${act.id}`);
 							let coords;
 							try{
+								console.log("loading from strava...");
 								coords = await stravaApi.streams.activity({
 									types: "latlng",
 									id: act.id
 								}).filter( ret => ret.type == 'latlng' );
-								} catch (e) {
+							} catch (e) {
 								console.log(`Does not exist in Strava: ${act.id}`);
 							}
 
 							if (coords && coords.length) { 
 								await new Promise( (res, rej) =>{
-									let loc = {
-											type: "MultiPoint",
-											coordinates: coords[0].data
-										}
+									let location = {
+										type: "MultiPoint",
+										coordinates: coords[0].data
+									}
 									const options = { upsert: true, new: true, setDefaultsOnInsert: true };
 
-									loc = flip(loc);
+									location = flip(location);
+
 									const params = {
 										id: act.id.toString(),
 										last: Date.now(),
 										service,
 										user,
-										loc
+										location
 									}	
 									activity.findOneAndUpdate({'id' : act.id, service}, params, options, function(err){
 										if (err) { 
 											console.log(err);
 											rej(); 
 										}
+										console.log('updated');
 										res();
 									});
+									
 								});
+							} else {
+								console.log('invalid, no coordinates');
 							}
 						}
 						

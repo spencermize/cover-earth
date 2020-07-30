@@ -1,5 +1,6 @@
 <template>
 	<div class="wrapper">
+		<link rel="stylesheet" href="https://openlayers.org/en/latest/css/ol.css" type="text/css">
 		<v-system-bar :lights-out="true">
 			<v-spacer></v-spacer>
 				<v-tooltip bottom>
@@ -42,8 +43,23 @@
 	import Loading from "./Loading.vue";
 	import flip from '@turf/flip';
 	import { cleanCoords } from '@turf/clean-coords';
-	import turf from '@turf/helpers';
+	import turf, { Geometry } from '@turf/helpers';
 
+	// Try out OpenLayers
+	import Map from 'ol/Map';
+	import View from 'ol/View';
+	import TileLayer from 'ol/layer/Tile';
+	import XYZ from 'ol/source/XYZ';
+	import {defaults} from 'ol/interaction';
+	import {toLonLat} from 'ol/proj';
+	import WebGLPointsLayer from 'ol/layer/WebGLPoints';
+	import GeoJSON from 'ol/format/GeoJSON';
+	import Vector from 'ol/source/Vector';
+	import Geolocation from 'ol/Geolocation';
+	import CircleStyle from 'ol/style/Circle';
+	import {Fill, Stroke, Style} from 'ol/style';
+	import Feature from 'ol/Feature';
+	import Point from 'ol/geom/Point';
 	export default Vue.extend({
 		name: 'Main',
 		components: { Loading },
@@ -52,10 +68,11 @@
 		},
 		data()  { 
 			return {
-				map: {} as L.Map,
+				map: {} as Map,
 				message: "" as string,
 				loading: false as boolean,
 				webGl: {} as any,
+				points: [] as [[number, number]?],
 				renderCycle: 0 as number
 			}
 		},
@@ -102,8 +119,14 @@
 			mapVisible: async function() {
 				// const zoom = this.map.getZoom();
 				// this.map.setZoom(1);
-				this.startRender();				
-				await this.loadPoints(`/api/locations/strava/${this.map.getBounds().toBBoxString()}`);
+				// this.startRender();		
+				const extents = this.map.getView().calculateExtent();
+				const bboxString1 = toLonLat([extents[0],extents[1]]).join(',');
+				const bboxString2 = toLonLat([extents[2],extents[3]]).join(',');
+				const bboxString = `${bboxString1},${bboxString2}`;
+				await this.loadPoints(`/api/locations/strava/${bboxString}`);
+
+				// await this.loadPoints(`/api/locations/strava/${this.map.getBounds().toBBoxString()}`);
 				// this.map.setZoom(zoom);
 			},	
 
@@ -115,48 +138,117 @@
 			loadPoints: function(location: string) {
 				return new Promise( (res, rej) => {
 					this.loading = true;
+					const vectorSource = new Vector({
+						format: new GeoJSON(),
+					});
+					const pointsLayer = new WebGLPointsLayer({
+						source: vectorSource,
+						style: {
+							// eslint-disable-next-line @typescript-eslint/ban-ts-ignore
+							// @ts-ignore							
+							symbol: {
+								// eslint-disable-next-line @typescript-eslint/ban-ts-ignore
+								// @ts-ignore								
+								symbolType: 'circle',
+								size: 8,
+								color: '#FF0000',
+								opacity: 0.9
+							}
+						},
+						disableHitDetection: false
+					});
+					this.map.addLayer(pointsLayer);
 					oboe(location)
 						.node('location.coordinates', (coordinates: [[number, number]]) => {
-							this.webGl.settings.data.push(...coordinates.map(pair => [pair[1], pair[0]])); // have to flip our coordinates because leaflet and geojson dislike one another
+							const newFeatures: Feature[] = [];
+							coordinates.forEach( coordinate => {
+								newFeatures.push(new Feature({
+									geometry: new Point(coordinate)
+								}));
+							} )
+							vectorSource.addFeatures(newFeatures);
+							console.log(vectorSource);
+							
 						})
 						.done( () => {
-							clearInterval(this.renderCycle);
+							// clearInterval(this.renderCycle);
 							this.loading = false;
+							this.map.render();
 							res();
 						})
 						.fail( () => rej );
+
+					// oboe(location)
+					// 	.node('location.coordinates', (coordinates: [[number, number]]) => {
+					// 		this.webGl.settings.data.push(...coordinates.map(pair => [pair[1], pair[0]])); // have to flip our coordinates because leaflet and geojson dislike one another
+					// 	})
+					// 	.done( () => {
+					// 		clearInterval(this.renderCycle);
+					// 		this.loading = false;
+					// 		res();
+					// 	})
+					// 	.fail( () => rej );
 				})
 
 			}
 		},
 		mounted() {
-			this.map = L.map('map',{
-				zoomControl: false,
-				preferCanvas: true,
-				renderer: L.canvas(),
-				crs: L.CRS.EPSG3857
+			const view: View = new View({
+					projection: 'EPSG:3857',
+					center: [0, 0],
+					zoom: 13
+				})
+			this.map = new Map({
+				target: 'map',
+				interactions: defaults({dragPan: true, mouseWheelZoom: true}),				
+				layers: [
+					new TileLayer({
+						source: new XYZ({
+							url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}'
+						})
+					})
+				],
+				view
+			});	
+
+			const geolocation = new Geolocation({
+				trackingOptions: {
+					enableHighAccuracy: true
+				},
+				projection: view.getProjection(),
+				tracking: true
 			});
 
-			this.map.setView([51.505, -0.09], 13);
-			this.map.locate({
-				setView: true,
-				maxZoom: 16,
-				enableHighAccuracy: true
-			});
-			L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
-				attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
-				maxZoom: 22,
-				maxNativeZoom: 16
-			}).addTo(this.map);
+			geolocation.on('change', () => {
+				view.setCenter(geolocation.getPosition());
+			})
+			// this.map = L.map('map',{
+			// 	zoomControl: false,
+			// 	preferCanvas: true,
+			// 	renderer: L.canvas(),
+			// 	crs: L.CRS.EPSG3857
+			// });
+
+			// this.map.setView([51.505, -0.09], 13);
+			// this.map.locate({
+			// 	setView: true,
+			// 	maxZoom: 16,
+			// 	enableHighAccuracy: true
+			// });
+			// L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+			// 	attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
+			// 	maxZoom: 22,
+			// 	maxNativeZoom: 16
+			// }).addTo(this.map);
 			
-			this.buildWebGl();
+			// this.buildWebGl();
 			
-			this.map.on("zoomstart movestart", async() => {			
-				L.imageOverlay(this.webGl.canvas.toDataURL('image/webp', 1), this.map.getBounds())
-					.bindPopup(() => (this.$refs.popup as any).$el)
-					.addTo(this.map);
-				// this.webGl.clear();
-			});
+			// this.map.on("zoomstart movestart", async() => {			
+			// 	L.imageOverlay(this.webGl.canvas.toDataURL('image/webp', 1), this.map.getBounds())
+			// 		.bindPopup(() => (this.$refs.popup as any).$el)
+			// 		.addTo(this.map);
+			// 	// this.webGl.clear();
+			// });
 		}
 	})
 </script>

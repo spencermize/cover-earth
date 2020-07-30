@@ -60,7 +60,8 @@ router.get('/:service?', async function(req, res, next){
 })
 
 router.get('/:service/:bbox', async function(req, res, next){
-	const [e, n, w, s] = req.params.bbox.split(',');
+	// const [e, n, w, s] = req.params.bbox.split(',');
+	const [w, s, e, n] = req.params.bbox.split(',');
 
 	//convert everything to numbers
 	const east = +e,
